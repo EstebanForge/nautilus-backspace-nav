@@ -10,9 +10,7 @@ A Nautilus extension that enables (restores) backspace key navigation to go up o
 
 Because the backspace key is, for better or worse, a common way to navigate up a directory in many file managers across different OSes. Muscle memory is a powerful thing, and it can be frustrating to have to use the mouse or a two-handed keyboard shortcut to achieve the same result in modern Nautilus.
 
-And I'm old enough to take care of myself and decide how I want to use my computer. Default options are OK, but developers shouldn't forget about users of an OS that promotes freedom of choice (and customization). Simple hidden options (gsettings) would be enough for "power users". And would be highly appreciated. 
-
-Anyhow...
+And I'm old enough to take care of myself and decide how I want to use my computer. Default options are OK, but developers shouldn't forget about users of an OS that promotes freedom of choice. Simple hidden options (gsettings) would be enough for "power users".
 
 I did find other extensions online that do this, but they were either outdated (Gnome 46 and earlier) or not working properly (couldn't use the backspace key in text fields). So I decided to create my own.
 
