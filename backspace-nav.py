@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Author: Esteban Cuevas
 # Email: esteban at attitude.cl
@@ -49,7 +49,7 @@ names, using search or using the path bar.
 """
 
 import gi
-import os
+import sys
 
 # Try to ensure minimum versions
 try:
@@ -58,9 +58,8 @@ try:
     gi.require_version('Gdk', '4.0')
 except ValueError as e:
     # Log critical error if imports fail, maybe to system log or stderr
-    print(f"[BackspaceNav] ERROR: Missing required GTK/Nautilus version ({e}). Extension cannot load.", file=os.sys.stderr)
-    import sys
-    sys.exit(1)
+    print(f"[BackspaceNav] ERROR: Missing required GTK/Nautilus version ({e}). Extension cannot load.", file=sys.stderr)
+    raise ImportError(f"Missing required GTK/Nautilus version: {e}")
 
 from gi.repository import GObject, Nautilus, Gtk, Gdk
 
@@ -72,10 +71,14 @@ class BackspaceNav(GObject.GObject, Nautilus.InfoProvider):
     Uses activate_action for navigation.
     """
 
+    __gtype_name__ = 'BackspaceNavExtension'
+
     def __init__(self):
+        GObject.GObject.__init__(self)
+        self._windows: set[Gtk.Window] = set()
         app = Gtk.Application.get_default()
         if not app:
-            print("[BackspaceNav] ERROR: Could not get Gtk.Application.get_default().", file=os.sys.stderr)
+            print("[BackspaceNav] ERROR: Could not get Gtk.Application.get_default().", file=sys.stderr)
             return
 
         app.connect("window-added", self.on_window_added)
@@ -89,7 +92,7 @@ class BackspaceNav(GObject.GObject, Nautilus.InfoProvider):
     # Required by Nautilus.InfoProvider
     def update_file_info(self, file: Nautilus.FileInfo):
         # Required method for InfoProvider interface. Does nothing here
-        pass
+        return Nautilus.OperationResult.COMPLETE
 
     # Window Handling
     def on_window_added(self, application: Gtk.Application, window: Gtk.Window):
@@ -99,8 +102,7 @@ class BackspaceNav(GObject.GObject, Nautilus.InfoProvider):
 
     def setup_controller_for_window(self, window: Gtk.Window):
         # Attaches the key controller to a given window
-        # Use a unique attribute name to check if controller is already attached
-        if hasattr(window, '_backspace_nav_controller_attached_clean_'):
+        if window in self._windows:
              return # Already attached
 
         key_controller = Gtk.EventControllerKey.new()
@@ -108,10 +110,10 @@ class BackspaceNav(GObject.GObject, Nautilus.InfoProvider):
         try:
             key_controller.connect("key-pressed", self.on_key_pressed, window)
             window.add_controller(key_controller)
-            # Mark the window so we don't add the controller multiple times
-            setattr(window, '_backspace_nav_controller_attached_clean_', True)
+            self._windows.add(window)
+            window.connect("destroy", lambda w: self._windows.discard(w))
         except Exception as e:
-             print(f"[BackspaceNav] ERROR setting up controller: {e}", file=os.sys.stderr)
+             print(f"[BackspaceNav] ERROR setting up controller: {e}", file=sys.stderr)
 
     # Key Press Logic
     def on_key_pressed(self, controller: Gtk.EventControllerKey, keyval: int, keycode: int, state: Gdk.ModifierType, window: Gtk.Window):
@@ -119,7 +121,7 @@ class BackspaceNav(GObject.GObject, Nautilus.InfoProvider):
         # Check if plain Backspace (no Shift/Ctrl/Alt) was pressed
         if keyval == Gdk.KEY_BackSpace and not (state & Gtk.accelerator_get_default_mod_mask()):
             focused_widget = window.get_focus()
-            is_editing = focused_widget is not None and isinstance(focused_widget, Gtk.Editable)
+            is_editing = focused_widget is not None and isinstance(focused_widget, (Gtk.Editable, Gtk.TextView))
 
             # Action: Navigate Up (Using activate_action)
             if not is_editing:
@@ -130,7 +132,7 @@ class BackspaceNav(GObject.GObject, Nautilus.InfoProvider):
                     return True
                 except Exception as e:
                      # Log error if action fails
-                     print(f"[BackspaceNav] ERROR activating action 'slot.up': {e}", file=os.sys.stderr)
+                     print(f"[BackspaceNav] ERROR activating action 'slot.up': {e}", file=sys.stderr)
                      # Return False on error to allow potential default handling
                      return False
 
