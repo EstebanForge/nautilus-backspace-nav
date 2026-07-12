@@ -51,15 +51,20 @@ names, using search or using the path bar.
 import gi
 import sys
 
-# Try to ensure minimum versions
+# Nautilus ships its GIR typelib under a versioned filename (Nautilus-4.0.typelib,
+# Nautilus-4.1.typelib, ...). Nautilus 50 bumped the API minor to 4.1, so hardcoding
+# '4.0' makes the extension fail to load on current GNOME. Detect the installed version
+# instead so we survive future minor bumps within the 4.x line.
 try:
-    gi.require_version('Nautilus', '4.0')
+    _nautilus_versions = gi.Repository.get_default().enumerate_versions('Nautilus')
+    if not _nautilus_versions:
+        raise ImportError("Nautilus typelib not found in GIR repository")
+    gi.require_version('Nautilus', _nautilus_versions[-1])
     gi.require_version('Gtk', '4.0')
     gi.require_version('Gdk', '4.0')
-except ValueError as e:
-    # Log critical error if imports fail, maybe to system log or stderr
-    print(f"[BackspaceNav] ERROR: Missing required GTK/Nautilus version ({e}). Extension cannot load.", file=sys.stderr)
-    raise ImportError(f"Missing required GTK/Nautilus version: {e}")
+except (ValueError, ImportError) as e:
+    print(f"[BackspaceNav] ERROR: {e}. Extension cannot load.", file=sys.stderr)
+    raise
 
 from gi.repository import GObject, Nautilus, Gtk, Gdk
 

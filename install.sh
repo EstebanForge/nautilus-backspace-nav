@@ -73,16 +73,24 @@ system_python() {
 
 PY3="$(system_python)"
 
+# Probe the installed Nautilus GIR typelib version (Nautilus-4.0.typelib vs 4.1.typelib
+# vs ...). Nautilus 50 bumped the API minor to 4.1, so hardcoding '4.0' fails on current
+# GNOME. Returns the highest installed version, or empty if none.
+nautilus_gir_version() {
+  "$PY3" -c 'import gi; vs=gi.Repository.get_default().enumerate_versions("Nautilus"); print(vs[-1] if vs else "")' 2>/dev/null
+}
+
 # Show the real exception and classify it. Never swallow the error, never guess from
 # the Python version alone (that misclassified a missing-gi as the namespace bug).
 show_nautilus_python_error() {
-  local err py_ver nautilus_ver sys_err sys_ok
-  err="$("$PY3" -c 'import gi; gi.require_version("Nautilus", "4.0"); import Nautilus' 2>&1 >/dev/null || true)"
+  local err py_ver nautilus_ver gir_ver sys_err
+  gir_ver="$(nautilus_gir_version)"
+  err="$("$PY3" -c "import gi; gi.require_version('Nautilus', '${gir_ver:-4.0}'); from gi.repository import Nautilus" 2>&1 >/dev/null || true)"
   py_ver="$("$PY3" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo unknown)"
   nautilus_ver="${nautilus_version:-unknown}"
   warn "Raw diagnostics from $PY3:"
   printf '%s\n' "$err" >&2
-  warn "Detected: python=${py_ver} nautilus=${nautilus_ver}"
+  warn "Detected: python=${py_ver} nautilus=${nautilus_ver} gir_version=${gir_ver:-none}"
   case "$err" in
     *"No module named 'gi'"*)
       # Common cause: a shadow python (pyenv/conda/linuxbrew/uv) on PATH hides system gi.
@@ -95,15 +103,18 @@ show_nautilus_python_error() {
       fi
       die "PyGObject (the python 'gi' module) is missing. Install it (dnf: python3-gobject, apt: python3-gi, pacman: python-gobject) and re-run." ;;
     *"Namespace Nautilus not available"*)
-      die "Known upstream bug: nautilus-python cannot import the Nautilus namespace (RHBZ #2428431). See https://bugzilla.redhat.com/show_bug.cgi?id=2428431 . Workaround: wait for a rebuild or downgrade to Fedora 43." ;;
+      die "Nautilus GIR typelib not found. Install nautilus-extensions (or equivalent) for your Nautilus version and re-run." ;;
     *)
       die "nautilus-python is installed but not importable. See the error above." ;;
   esac
 }
 
-# is the nautilus-python bridge importable? (silent check, uses system python)
+# is the nautilus-python bridge importable? (silent check, uses system python + detected GIR version)
 has_nautilus_python() {
-  "$PY3" -c 'import gi; gi.require_version("Nautilus", "4.0"); import Nautilus' >/dev/null 2>&1
+  local gir_ver
+  gir_ver="$(nautilus_gir_version)"
+  [[ -n "$gir_ver" ]] || return 1
+  "$PY3" -c "import gi; gi.require_version('Nautilus', '$gir_ver'); from gi.repository import Nautilus" >/dev/null 2>&1
 }
 
 # --- 2. preflight: python3 ----------------------------------------------------
