@@ -62,18 +62,37 @@ gi_pkg_for() {
   esac
 }
 
+# nautilus-python embeds the interpreter it was compiled against -- the SYSTEM python,
+# not whatever happens to be first on PATH (pyenv/conda/linuxbrew/uv/asdf shadow it).
+# Probe /usr/bin/python3 first, fall back to bare python3.
+system_python() {
+  if [[ -x /usr/bin/python3 ]]; then echo "/usr/bin/python3"
+  else echo "python3"
+  fi
+}
+
+PY3="$(system_python)"
+
 # Show the real exception and classify it. Never swallow the error, never guess from
 # the Python version alone (that misclassified a missing-gi as the namespace bug).
 show_nautilus_python_error() {
-  local err py_ver nautilus_ver
-  err="$(python3 -c 'import gi; gi.require_version("Nautilus", "4.0"); import Nautilus' 2>&1 >/dev/null || true)"
-  py_ver="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo unknown)"
+  local err py_ver nautilus_ver sys_err sys_ok
+  err="$("$PY3" -c 'import gi; gi.require_version("Nautilus", "4.0"); import Nautilus' 2>&1 >/dev/null || true)"
+  py_ver="$("$PY3" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo unknown)"
   nautilus_ver="${nautilus_version:-unknown}"
-  warn "Raw diagnostics from python3:"
+  warn "Raw diagnostics from $PY3:"
   printf '%s\n' "$err" >&2
   warn "Detected: python=${py_ver} nautilus=${nautilus_ver}"
   case "$err" in
     *"No module named 'gi'"*)
+      # Common cause: a shadow python (pyenv/conda/linuxbrew/uv) on PATH hides system gi.
+      # Distinguish that from a genuinely missing package by checking /usr/bin/python3 too.
+      if [[ "$PY3" != "/usr/bin/python3" && -x /usr/bin/python3 ]]; then
+        sys_err="$(/usr/bin/python3 -c 'import gi' 2>&1 || true)"
+        if [[ -z "$sys_err" ]]; then
+          die "PyGObject (gi) is installed for the system Python (/usr/bin/python3), but your PATH resolves '$PY3' first, and that interpreter lacks gi. nautilus-python uses the system interpreter anyway, so the extension should still work. If not, fix PATH or 'hash -r' and re-run."
+        fi
+      fi
       die "PyGObject (the python 'gi' module) is missing. Install it (dnf: python3-gobject, apt: python3-gi, pacman: python-gobject) and re-run." ;;
     *"Namespace Nautilus not available"*)
       die "Known upstream bug: nautilus-python cannot import the Nautilus namespace (RHBZ #2428431). See https://bugzilla.redhat.com/show_bug.cgi?id=2428431 . Workaround: wait for a rebuild or downgrade to Fedora 43." ;;
@@ -82,9 +101,9 @@ show_nautilus_python_error() {
   esac
 }
 
-# is the nautilus-python bridge importable? (silent check)
+# is the nautilus-python bridge importable? (silent check, uses system python)
 has_nautilus_python() {
-  python3 -c 'import gi; gi.require_version("Nautilus", "4.0"); import Nautilus' >/dev/null 2>&1
+  "$PY3" -c 'import gi; gi.require_version("Nautilus", "4.0"); import Nautilus' >/dev/null 2>&1
 }
 
 # --- 2. preflight: python3 ----------------------------------------------------
