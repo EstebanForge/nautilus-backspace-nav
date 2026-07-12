@@ -3,7 +3,9 @@
 All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.1.0] - 2026-07-12
+
+Support and install fixes for modern Fedora / Nautilus 50+.
 
 ### Fixed
 
@@ -43,4 +45,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- One-liner installer (`install.sh`) with distro-aware dependency detection
+  (dnf/apt/pacman/zypper/emerge).
 - `.gitignore` for `__pycache__/`.
+- `CHANGELOG.md`.
+
+## [1.0.0] - 2025-03-30
+
+Initial release.
+
+### Added
+
+- Backspace-navigates-up extension for Nautilus (`backspace-nav.py`), restoring
+  the classic Backspace-to-go-up behavior on GNOME 42+.
+- `README.md` with install and usage instructions.
+- `LICENSE.md`.
