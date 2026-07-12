@@ -49,7 +49,21 @@ detect_pkg_manager() {
   fi
 }
 
-# is the nautilus-python bridge importable?
+# Show the real exception when the bridge is not importable. Never swallow it.
+show_nautilus_python_error() {
+  warn "Raw diagnostics from python3:"
+  python3 -c 'import gi; gi.require_version("Nautilus", "4.0"); import Nautilus' >&2 || true
+  local py_ver
+  py_ver="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo unknown)"
+  local nautilus_ver="${nautilus_version:-unknown}"
+  warn "Detected: python=${py_ver} nautilus=${nautilus_ver}"
+  if [[ "$py_ver" == "3.14" ]]; then
+    die "Known upstream bug on Fedora 44 / Python 3.14: nautilus-python cannot import the Nautilus namespace (RHBZ #2428431). No fix yet. See https://bugzilla.redhat.com/show_bug.cgi?id=2428431 . Workaround: wait for rebuild, or downgrade to Fedora 43."
+  fi
+  die "nautilus-python is installed but not importable. If this is Fedora 44 / Python 3.14, see known bug: https://bugzilla.redhat.com/show_bug.cgi?id=2428431"
+}
+
+# is the nautilus-python bridge importable? (silent check)
 has_nautilus_python() {
   python3 -c 'import gi; gi.require_version("Nautilus", "4.0"); import Nautilus' >/dev/null 2>&1
 }
@@ -90,7 +104,7 @@ else
     emerge) sudo emerge -av "$pkg" ;;
   esac
 
-  has_nautilus_python || die "nautilus-python still not importable after install. Check your distro package."
+  has_nautilus_python || { show_nautilus_python_error; }
   ok "nautilus-python bridge installed."
 fi
 
