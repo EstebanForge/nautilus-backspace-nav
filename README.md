@@ -49,13 +49,13 @@ When piped, it auto-confirms the sudo install and Nautilus restart. Run it from 
 
 #### 1. Install the required dependency:
 
-For Fedora 41
+For Fedora 41 or greater
 
    ```bash
    sudo dnf install nautilus-python
    ```
 
-For Ubuntu 24.10
+For Ubuntu 24.10 or greater
 
    ```bash
    sudo apt install python3-nautilus
