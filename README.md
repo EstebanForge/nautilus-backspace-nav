@@ -35,7 +35,19 @@ Tested only on Fedora 41 with latest Gnome 47.5
 
 ## Installation
 
-### 1. Install the required dependency:
+### Quick Install (recommended)
+
+A one-liner that detects your distro, installs the required `nautilus-python` package (via sudo), copies the extension to the right location, and restarts Nautilus:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EstebanForge/nautilus-backspace-nav/main/install.sh | bash
+```
+
+When piped, it auto-confirms the sudo install and Nautilus restart. Run it from a terminal if you'd rather be prompted at each step.
+
+### Manual Install
+
+#### 1. Install the required dependency:
 
 For Fedora 41
 
@@ -52,10 +64,10 @@ For Ubuntu 24.10
 For Arch Linux
 
    ```bash
-   sudo pacman -S python-nautilus
+   sudo pacman -S nautilus-python
    ```
 
-### 2. Download and install the extension:
+#### 2. Download and install the extension:
 
    ```bash
    mkdir -p ~/.local/share/nautilus-python/extensions/
@@ -67,7 +79,7 @@ Or you can download the script manually and put it into:
 
 `~/.local/share/nautilus-python/extensions/`
 
-### 3. Restart Nautilus:
+#### 3. Restart Nautilus:
 
    ```bash
    nautilus -q
