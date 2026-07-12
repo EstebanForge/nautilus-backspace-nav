@@ -49,18 +49,37 @@ detect_pkg_manager() {
   fi
 }
 
-# Show the real exception when the bridge is not importable. Never swallow it.
+# Companion PyGObject package (provides `import gi`) per backend. The nautilus-python
+# bridge package does NOT always pull it in (notably on Fedora 44), so install explicitly.
+gi_pkg_for() {
+  case "$1" in
+    dnf)    echo "python3-gobject" ;;
+    apt)    echo "python3-gi" ;;
+    pacman) echo "python-gobject" ;;
+    zypper) echo "python3-gobject" ;;
+    emerge) echo "dev-python/pygobject" ;;
+    *)      echo "" ;;
+  esac
+}
+
+# Show the real exception and classify it. Never swallow the error, never guess from
+# the Python version alone (that misclassified a missing-gi as the namespace bug).
 show_nautilus_python_error() {
-  warn "Raw diagnostics from python3:"
-  python3 -c 'import gi; gi.require_version("Nautilus", "4.0"); import Nautilus' >&2 || true
-  local py_ver
+  local err py_ver nautilus_ver
+  err="$(python3 -c 'import gi; gi.require_version("Nautilus", "4.0"); import Nautilus' 2>&1 >/dev/null || true)"
   py_ver="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo unknown)"
-  local nautilus_ver="${nautilus_version:-unknown}"
+  nautilus_ver="${nautilus_version:-unknown}"
+  warn "Raw diagnostics from python3:"
+  printf '%s\n' "$err" >&2
   warn "Detected: python=${py_ver} nautilus=${nautilus_ver}"
-  if [[ "$py_ver" == "3.14" ]]; then
-    die "Known upstream bug on Fedora 44 / Python 3.14: nautilus-python cannot import the Nautilus namespace (RHBZ #2428431). No fix yet. See https://bugzilla.redhat.com/show_bug.cgi?id=2428431 . Workaround: wait for rebuild, or downgrade to Fedora 43."
-  fi
-  die "nautilus-python is installed but not importable. If this is Fedora 44 / Python 3.14, see known bug: https://bugzilla.redhat.com/show_bug.cgi?id=2428431"
+  case "$err" in
+    *"No module named 'gi'"*)
+      die "PyGObject (the python 'gi' module) is missing. Install it (dnf: python3-gobject, apt: python3-gi, pacman: python-gobject) and re-run." ;;
+    *"Namespace Nautilus not available"*)
+      die "Known upstream bug: nautilus-python cannot import the Nautilus namespace (RHBZ #2428431). See https://bugzilla.redhat.com/show_bug.cgi?id=2428431 . Workaround: wait for a rebuild or downgrade to Fedora 43." ;;
+    *)
+      die "nautilus-python is installed but not importable. See the error above." ;;
+  esac
 }
 
 # is the nautilus-python bridge importable? (silent check)
@@ -93,15 +112,16 @@ else
   if [[ "$pm" == "none" ]]; then
     die "nautilus-python is missing and no supported package manager (dnf/apt/pacman/zypper/emerge) was found."
   fi
-  info "nautilus-python bridge is missing (would install: $pkg via $pm)."
+  gi_pkg="$(gi_pkg_for "$pm")"
+  info "nautilus-python bridge is missing (would install: $pkg${gi_pkg:+ and $gi_pkg} via $pm)."
   confirm "Install it now (requires sudo)?" || die "Cannot continue without nautilus-python. Aborting."
 
   case "$pm" in
-    dnf)    sudo dnf install -y "$pkg" ;;
-    apt)    sudo apt update && sudo apt install -y "$pkg" ;;
-    pacman) sudo pacman -S --noconfirm "$pkg" ;;
-    zypper) sudo zypper --non-interactive install "$pkg" ;;
-    emerge) sudo emerge -av "$pkg" ;;
+    dnf)    sudo dnf install -y "$pkg" $gi_pkg ;;
+    apt)    sudo apt update && sudo apt install -y "$pkg" $gi_pkg ;;
+    pacman) sudo pacman -S --noconfirm "$pkg" $gi_pkg ;;
+    zypper) sudo zypper --non-interactive install "$pkg" $gi_pkg ;;
+    emerge) sudo emerge -av "$pkg" $gi_pkg ;;
   esac
 
   has_nautilus_python || { show_nautilus_python_error; }
